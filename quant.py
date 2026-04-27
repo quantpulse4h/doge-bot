@@ -2,7 +2,6 @@ import pandas as pd
 import requests
 import smtplib
 from email.mime.text import MIMEText
-import time
 from datetime import datetime
 
 # --- AYARLAR ---
@@ -29,9 +28,7 @@ def calculate_manual_indicators(df):
     df['macd'] = exp1 - exp2
     df['signal_line'] = df['macd'].ewm(span=9, adjust=False).mean()
     df['hist'] = df['macd'] - df['signal_line']
-    high_low = df['h'] - df['l']
-    tr = high_low # Basitleştirilmiş TR
-    df['atr'] = tr.rolling(14).mean()
+    df['atr'] = (df['h'] - df['l']).rolling(14).mean()
     return df
 
 def send_mail(signal, price, sl, tp):
@@ -42,21 +39,33 @@ def send_mail(signal, price, sl, tp):
     msg['Subject'] = subject
     msg['From'] = SENDER_EMAIL
     msg['To'] = SENDER_EMAIL
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-        server.login(SENDER_EMAIL, PASSWORD)
-        server.sendmail(SENDER_EMAIL, SENDER_EMAIL, msg.as_string())
+    
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(SENDER_EMAIL, PASSWORD)
+            server.sendmail(SENDER_EMAIL, SENDER_EMAIL, msg.as_string())
+            print("Mail basariyla gonderildi.")
+    except Exception as e:
+        print(f"Mail gonderme hatasi: {e}")
+        raise # Hatayi GitHub loglarina gonder
 
-# Analiz ve Mail Gönderimi
-df = get_data()
-df = calculate_manual_indicators(df)
-last = df.iloc[-1]
-price, atr, rsi, hist, ema = last['c'], last['atr'], last['rsi'], last['hist'], last['ema200']
-signal = "BEKLE"
-sl, tp = 0, 0
-if price > ema and hist > 0 and rsi < 65:
-    signal = "LONG"
-    sl, tp = price - (atr * 1.5), price + (atr * 3)
-elif price < ema and hist < 0 and rsi > 35:
-    signal = "SHORT"
-    sl, tp = price + (atr * 1.5), price - (atr * 3)
-send_mail(signal, price, sl, tp)
+# Calistir
+try:
+    df = get_data()
+    df = calculate_manual_indicators(df)
+    last = df.iloc[-1]
+    price, atr, rsi, hist, ema = last['c'], last['atr'], last['rsi'], last['hist'], last['ema200']
+    
+    signal = "BEKLE"
+    sl, tp = 0, 0
+    if price > ema and hist > 0 and rsi < 65:
+        signal = "LONG"
+        sl, tp = price - (atr * 1.5), price + (atr * 3)
+    elif price < ema and hist < 0 and rsi > 35:
+        signal = "SHORT"
+        sl, tp = price + (atr * 1.5), price - (atr * 3)
+    
+    send_mail(signal, price, sl, tp)
+except Exception as e:
+    print(f"Genel hata: {e}")
+    exit(1)
