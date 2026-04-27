@@ -8,12 +8,15 @@ jobs:
   run-bot:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Python Kur
+      - name: Kodu Cek
+        uses: actions/checkout@v4
+      - name: Python Ayarla
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Paketleri Yukle
-        run: pip install pandas requests
+      - name: Kutuphaneleri Yukle
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas requests
       - name: Botu Calistir
         run: python quant.py
