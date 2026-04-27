@@ -10,32 +10,42 @@ SENDER_EMAIL = "quantpulse4h@gmail.com"
 PASSWORD = "gjkkwqwcbzdcxclm" 
 
 def get_data():
-    url = f"https://api.binance.com/api/v3/klines?symbol={SYMBOL}&interval=4h&limit=350"
+    url = f"https://api.binance.com/api/v3/klines?symbol={SYMBOL}&interval=4h&limit=300"
     res = requests.get(url).json()
     df = pd.DataFrame(res, columns=['ts', 'o', 'h', 'l', 'c', 'v', 'ct', 'qa', 't', 'tb', 'tq', 'i'])
-    df[['o', 'h', 'l', 'c', 'v']] = df[['o', 'h', 'l', 'c', 'v']].astype(float)
+    df['c'] = df['c'].astype(float)
+    df['h'] = df['h'].astype(float)
+    df['l'] = df['l'].astype(float)
     return df
 
-def calculate_manual_indicators(df):
+def run_analysis():
+    df = get_data()
+    # EMA 200 hesaplama
     df['ema200'] = df['c'].ewm(span=200, adjust=False).mean()
+    # RSI hesaplama
     delta = df['c'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
     rs = gain / loss
     df['rsi'] = 100 - (100 / (1 + rs))
-    exp1 = df['c'].ewm(span=12, adjust=False).mean()
-    exp2 = df['c'].ewm(span=26, adjust=False).mean()
-    df['macd'] = exp1 - exp2
-    df['signal_line'] = df['macd'].ewm(span=9, adjust=False).mean()
-    df['hist'] = df['macd'] - df['signal_line']
-    df['atr'] = (df['h'] - df['l']).rolling(14).mean()
-    return df
-
-def send_mail(signal, price, sl, tp):
+    
+    last = df.iloc[-1]
+    price = last['c']
+    ema = last['ema200']
+    rsi = last['rsi']
+    
+    signal = "BEKLE"
+    if price > ema and rsi < 65:
+        signal = "LONG"
+    elif price < ema and rsi > 35:
+        signal = "SHORT"
+    
+    # Mail İçeriği
     ts = datetime.now().strftime('%d/%m/%Y %H:%M')
-    subject = f"📊 DOGE Raporu: {signal}"
-    content = f"Zaman: {ts}\nFiyat: {price:.5f}\nSinyal: {signal}\nSL: {sl:.5f}\nTP: {tp:.5f}"
-    msg = MIMEText(content)
+    subject = f"DOGE Raporu: {signal}"
+    body = f"Zaman: {ts}\nFiyat: {price}\nSinyal: {signal}\nEMA200: {ema:.5f}\nRSI: {rsi:.2f}"
+    
+    msg = MIMEText(body)
     msg['Subject'] = subject
     msg['From'] = SENDER_EMAIL
     msg['To'] = SENDER_EMAIL
@@ -44,28 +54,9 @@ def send_mail(signal, price, sl, tp):
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(SENDER_EMAIL, PASSWORD)
             server.sendmail(SENDER_EMAIL, SENDER_EMAIL, msg.as_string())
-            print("Mail basariyla gonderildi.")
+        print("Mail basariyla gonderildi.")
     except Exception as e:
-        print(f"Mail gonderme hatasi: {e}")
-        raise # Hatayi GitHub loglarina gonder
+        print(f"Hata: {e}")
 
-# Calistir
-try:
-    df = get_data()
-    df = calculate_manual_indicators(df)
-    last = df.iloc[-1]
-    price, atr, rsi, hist, ema = last['c'], last['atr'], last['rsi'], last['hist'], last['ema200']
-    
-    signal = "BEKLE"
-    sl, tp = 0, 0
-    if price > ema and hist > 0 and rsi < 65:
-        signal = "LONG"
-        sl, tp = price - (atr * 1.5), price + (atr * 3)
-    elif price < ema and hist < 0 and rsi > 35:
-        signal = "SHORT"
-        sl, tp = price + (atr * 1.5), price - (atr * 3)
-    
-    send_mail(signal, price, sl, tp)
-except Exception as e:
-    print(f"Genel hata: {e}")
-    exit(1)
+if __name__ == "__main__":
+    run_analysis()
