@@ -4,6 +4,7 @@ import smtplib
 from email.mime.text import MIMEText
 from datetime import datetime
 import time
+import random
 
 # --- AYARLAR ---
 SYMBOL = "DOGEUSDT"
@@ -24,22 +25,33 @@ def send_mail(subject, body):
         print(f"Mail hatasi: {e}")
 
 def get_binance_data():
-    # Binance'in 3 farklı bağlantı adresini sırayla deniyoruz
     base_urls = [
         "https://api.binance.com",
         "https://api1.binance.com",
+        "https://api2.binance.com",
         "https://api3.binance.com"
     ]
     
+    # Kendimizi gerçek bir tarayıcı gibi tanıtıyoruz (User-Agent)
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
+    
+    random.shuffle(base_urls) # Sunucuları her seferinde farklı sırada dene
+    
     for base in base_urls:
         try:
-            # İstek miktarını 250'ye düşürdük (daha hızlı ve güvenli)
+            # Rastgele kısa bir bekleme ekleyerek Binance radarına takılma ihtimalini düşür
+            time.sleep(random.uniform(1, 3))
+            
             url = f"{base}/api/v3/klines?symbol={SYMBOL}&interval=4h&limit=250"
-            res = requests.get(url, timeout=15).json()
-            if res and len(res) > 100:
+            response = requests.get(url, headers=headers, timeout=20)
+            res = response.json()
+            
+            if isinstance(res, list) and len(res) > 100:
                 return res
         except:
-            continue # Bu sunucu hata verirse diğerine geç
+            continue
     return None
 
 def run_bot():
@@ -59,10 +71,9 @@ def run_bot():
         
         body = f"Zaman: {ts}\nFiyat: {last_price}\nEMA200: {ema:.5f}\nSinyal: {signal}"
         send_mail(f"🚀 DOGE 4H Raporu: {signal}", body)
-        print(f"Analiz tamamlandi: {signal}")
     else:
-        # Tüm sunucular başarısız olursa mail atar
-        send_mail("⚠️ DOGE Bot: Baglanti Hatasi", f"{ts} tarihinde Binance sunucularina ulasilamadi.")
+        # Eğer hala veri gelmiyorsa, boş mail atarak seni haberdar eder
+        send_mail("⚠️ DOGE Bot: Baglanti Hatasi", f"{ts} tarihinde tum sunucular reddedildi.")
 
 if __name__ == "__main__":
     run_bot()
