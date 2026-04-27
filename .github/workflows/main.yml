@@ -1,0 +1,19 @@
+name: Doge 4H Bot
+on:
+  schedule:
+    - cron: '0 */4 * * *'  # Her 4 saatte bir çalıştır (Bulutta)
+  workflow_dispatch:      # Manuel çalıştırma butonu ekler
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Python Kur
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+      - name: Paketleri Yukle
+        run: pip install pandas requests
+      - name: Botu Calistir
+        run: python quant.py
